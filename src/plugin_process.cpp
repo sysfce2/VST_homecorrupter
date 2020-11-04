@@ -36,6 +36,7 @@ PluginProcess::PluginProcess( int amountOfChannels )
 
     for ( int i = 0; i < amountOfChannels; ++i ) {
         _lastSamples[ i ] = 0.f;
+        _lowPassFilters.push_back( new LowPassFilter());
     }
 
     _dryMix = 0.f;
@@ -45,7 +46,7 @@ PluginProcess::PluginProcess( int amountOfChannels )
 
     bitCrusher = new BitCrusher( 1.f, .5f, 1.f );
     limiter    = new Limiter( 10.f, 500.f, .6f );
-    _decimator = new Decimator( 16, 1.f );
+    decimator  = new Decimator( 16, 1.f );
 
     // buffers will be lazily created in the process function as they correspond to the host buffer size
     _recordBuffer  = nullptr;
@@ -75,10 +76,16 @@ PluginProcess::~PluginProcess()
     delete[] _lastSamples;
     delete bitCrusher;
     delete limiter;
-    delete _decimator;
+    delete decimator;
+
+    while ( _lowPassFilters.size() > 0 ) {
+        delete _lowPassFilters.at( 0 );
+        _lowPassFilters.erase( _lowPassFilters.begin() );
+    }
+
     delete _recordBuffer;
-    delete _postMixBuffer;
     delete _preMixBuffer;
+    delete _postMixBuffer;
     delete _downSampleLfo;
     delete _playbackRateLfo;
 }
@@ -103,10 +110,6 @@ void PluginProcess::setResampleRate( float value )
     float tempRatio = _tempDownSampleAmount / std::max( 0.000000001f, _downSampleAmount );
     float scaledAmount = Calc::scale( downSampleValue, 1.f, _maxDownSample - 1.f ) + 1.f;
 
-    if ( scaledAmount != _downSampleAmount && _recordBuffer != nullptr ) {
-        float ratio  = scaledAmount / _downSampleAmount;
-        _readPointer = std::max( 0.f, std::min(( float ) _recordBuffer->bufferSize - 1.f, ( float ) _writePointer * ratio ));
-    }
     _downSampleAmount = scaledAmount;
 
     // in case down sampling is attached to oscillator, keep relative offset of currently moving wave in place
@@ -190,16 +193,25 @@ void PluginProcess::setPlaybackRateLfo( float LFORatePercentage, float LFODepth 
 
 void PluginProcess::resetReadWritePointers()
 {
-    _readPointer  = 0.f;
-    _writePointer = 0;
+    _readPointer     = 0.f;
+    _writePointer    = 0;
+    _subSampleOffset = 0.f;
 }
 
 /* private methods */
 
 void PluginProcess::cacheValues()
 {
-    _sampleIncr = std::max( 1, ( int ) floor( _tempDownSampleAmount ));
-    // should be  _sampleIncr = std::max( 1.f, _maxDownSample / ( abs( _tempDownSampleAmount - _maxDownSample ) + 1.f ));
+    _sampleIncr = std::max( 1.f,  _tempDownSampleAmount );
+     // should be  _sampleIncr = std::max( 1.f, _maxDownSample / ( abs( _tempDownSampleAmount - _maxDownSample ) + 1.f )); // BUT WHY ??
+
+    decimator->setRate( std::max( 1.f, _tempDownSampleAmount ) / _maxDownSample );
+
+    // prepare the lowpass filters for the appropriate cutoff
+
+    for ( int c = 0; c < _amountOfChannels; ++c ) {
+        _lowPassFilters.at( c )->calculateCutOff( _tempDownSampleAmount );
+    }
 }
 
 void PluginProcess::cacheLfo()

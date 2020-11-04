@@ -3,6 +3,7 @@
 
 #include "pluginterfaces/base/fplatform.h"
 #include "pluginterfaces/base/funknown.h"
+#include <math.h>
 
 using namespace Steinberg;
 
@@ -20,8 +21,9 @@ namespace VST {
 
     extern float SAMPLE_RATE; // set upon initialization, see vst.cpp
 
-    static const float PI     = 3.141592653589793f;
-    static const float TWO_PI = PI * 2.f;
+    static const float PI       = 3.141592653589793f;
+    static const float TWO_PI   = PI * 2.f;
+    static const float SQRT_TWO = sqrt( 2 );
 
     // maximum and minimum rate of oscillation in Hz
     // also see plugin.uidesc to update the controls to match

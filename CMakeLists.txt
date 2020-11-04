@@ -108,10 +108,14 @@ set(vst_sources
     src/bitcrusher.cpp
     src/decimator.h
     src/decimator.cpp
+    src/downsampler.h
+    src/downsampler.cpp
     src/lfo.h
     src/lfo.cpp
     src/limiter.h
     src/limiter.cpp
+    src/lowpassfilter.h
+    src/lowpassfilter.cpp
     src/paramids.h
     src/plugin_process.h
     src/plugin_process.cpp

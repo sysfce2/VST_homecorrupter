@@ -22,15 +22,16 @@
  */
 #include "lowpassfilter.h"
 #include "global.h"
+#include <algorithm>
 #include <cmath>
 
 namespace Igorski {
 
 /* constructor / destructor */
 
-LowPassFilter::LowPassFilter( float cutoff )
+LowPassFilter::LowPassFilter()
 {
-    setCutoff( cutoff );
+
 }
 
 LowPassFilter::~LowPassFilter()
@@ -40,52 +41,60 @@ LowPassFilter::~LowPassFilter()
 
 /* public methods */
 
-float LowPassFilter::getCutoff()
+void LowPassFilter::calculateCutOff( float frequencyRatio )
 {
-    return _cutoff;
+    const float proportionalRate = frequencyRatio > 1.0f ? 0.5f / frequencyRatio : 0.5f  * frequencyRatio;
+    const float n = 1.f / tan(( float ) VST::PI * std::max( 0.001f, proportionalRate ));
+    const float nSquared = n * n;
+    const float c1 = 1.f / ( 1.f + VST::SQRT_TWO * n + nSquared );
+
+    setFilterCoefficients(
+        c1,
+        c1 * 2.f,
+        c1,
+        1.f,
+        c1 * 2.f * ( 1.f - nSquared ),
+        c1 * ( 1.f - VST::SQRT_TWO * n + nSquared )
+    );
 }
 
-void LowPassFilter::setCutoff( float value )
+void LowPassFilter::setFilterCoefficients( float c1, float c2, float c3, float c4, float c5, float c6 )
 {
-    _cutoff = value;
+    const float a = 1.f / c4;
 
-    float Q = 1.1f;
-    w0 = VST::TWO_PI * _cutoff / ( float ) VST::SAMPLE_RATE;
-    alpha = sin(w0) / ( 2.f * Q );
-    b0 =  (1.f - cos(w0)) / 2.f;
-    b1 =   1.f - cos(w0);
-    b2 =  (1.f - cos(w0)) / 2.f;
-    a0 =   1.f + alpha;
-    a1 =  -2.0 * cos(w0);
-    a2 = 1.f - alpha;
-    x1 = x2 = y1 = y2 = 0;
+    c1 *= a;
+    c2 *= a;
+    c3 *= a;
+    c5 *= a;
+    c6 *= a;
+
+    coefficients[ 0 ] = c1;
+    coefficients[ 1 ] = c2;
+    coefficients[ 2 ] = c3;
+    coefficients[ 3 ] = c4;
+    coefficients[ 4 ] = c5;
+    coefficients[ 5 ] = c6;
 }
 
-void LowPassFilter::store()
+void LowPassFilter::applyFilter( float* samples, int amountOfSamples )
 {
-    orgx1 = x1;
-    orgx2 = x2;
-    orgy1 = y1;
-    orgy2 = y2;
+    while ( --amountOfSamples >= 0 )
+    {
+        const float in = *samples;
+
+        float out = coefficients[ 0 ] * in
+                  + coefficients[ 1 ] * x1
+                  + coefficients[ 2 ] * x2
+                  - coefficients[ 4 ] * y1
+                  - coefficients[ 5 ] * y2;
+
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
+
+        *samples++ = out;
+    }
 }
 
-void LowPassFilter::restore()
-{
-    x1 = orgx1;
-    x2 = orgx2;
-    y1 = orgy1;
-    y2 = orgy2;
-}
-
-float LowPassFilter::processSingle( float sample )
-{
-    float sampleOut = (b0/a0) * sample + (b1/a0) * x1 + (b2/a0) * x2 - (a1/a0) * y1 - (a2/a0) * y2;
-
-    x2 = x1;
-    x1 = sample;
-    y2 = y1;
-    y1 = sampleOut;
-
-    return sampleOut;
-}
 }

@@ -19,26 +19,33 @@
  * EXPRESSED OR IMPLIED, INCLUDING MERCHANTABILITY AND FITNESS FOR PURPOSE, ARE
  * DISCLAIMED.
  */
-#ifndef __LOWPASSFILTER_H_INCLUDED__
-#define __LOWPASSFILTER_H_INCLUDED__
+#ifndef __DOWNSAMPLER_H_INCLUDED__
+#define __DOWNSAMPLER_H_INCLUDED__
+
+#include <vector>
 
 namespace Igorski {
-class LowPassFilter
+class DownSampler
 {
     public:
-        LowPassFilter();
-        ~LowPassFilter();
+        DownSampler( int amountOfChannels );
+        ~DownSampler();
 
-        void calculateCutOff( float frequencyRatio );
-        void setFilterCoefficients( float c1, float c2, float c3, float c4, float c5, float c6 );
-        void applyFilter( float* samples, int bufferSize );
+        void setDownSampleRatio( float value );
+        void process( float* sampleBuffer, int bufferSize );
 
     private:
-        float coefficients[ 6 ];
-        float x1 = 0.f;
-        float x2 = 0.f;
-        float y1 = 0.f;
-        float y2 = 0.f;
+        float ratio           = 1.f;
+        float lastRatio       = 1.f;
+        int bufferPos         = 0;
+        int sampsInBuffer     = 0;
+        float subSampleOffset = 0.0;
+
+        int numChannels;
+
+        void flushBuffers();
+        void resetFilters();
+
 };
 }
 

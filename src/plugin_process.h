@@ -27,6 +27,7 @@
 #include "audiobuffer.h"
 #include "bitcrusher.h"
 #include "decimator.h"
+#include "lowpassfilter.h"
 #include "limiter.h"
 #include <vector>
 
@@ -63,22 +64,28 @@ class PluginProcess
 
         BitCrusher* bitCrusher;
         Limiter* limiter;
+        Decimator* decimator;
 
         LFO* _downSampleLfo;
         LFO* _playbackRateLfo;
 
     private:
         AudioBuffer* _recordBuffer;   // buffer used to record incoming signal
-        AudioBuffer* _preMixBuffer;   // buffer used for the pre-delay effect mixing
-        AudioBuffer* _postMixBuffer;  // buffer used for the post-delay effect mixing
-        float _readPointer;           // where to read from in the record buffer
+        AudioBuffer* _preMixBuffer;   // buffer used for the pre down sampling mixing
+        AudioBuffer* _postMixBuffer;  // buffer used for the post down sampling mixing
+
         int _writePointer;            // where to write into the record buffer
+        float _readPointer;           // where to read from in the record buffer (used for playback rate adjustments)
+
         int _maxRecordBufferSize;
 
         float _dryMix;
         float _wetMix;
-        float _downSampleAmount;
+
+        float _downSampleAmount;      // down sample amount specifies the multiplication factor on the source material, always > 1.f as we don't upsample
         float _tempDownSampleAmount;
+        float _subSampleOffset = 0.f;
+
         float _playbackRate;
         float _tempPlaybackRate;
         float _sampleIncr;
@@ -101,7 +108,7 @@ class PluginProcess
         void cacheLfo();
         void cacheMaxDownSample();
 
-        Decimator* _decimator;
+        std::vector<LowPassFilter*> _lowPassFilters;
 
         // ensures the pre- and post mix buffers match the appropriate amount of channels
         // and buffer size. this also clones the contents of given in buffer into the pre-mix buffer

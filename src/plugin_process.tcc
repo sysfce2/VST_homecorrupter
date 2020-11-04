@@ -29,15 +29,17 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
                              int bufferSize, uint32 sampleFramesSize ) {
 
     float fBufferSize = ( float ) bufferSize;
+    int maxBufferPos  = bufferSize - 1;
 
     // input and output buffers can be float or double as defined
     // by the templates SampleType value. Internally we process
     // audio as floats
 
     SampleType inSample;
-    int i, l;
+    int32 i;
 
     bool mixDry = _dryMix != 0.f;
+    bool mustDownSample = _downSampleAmount > 1.f;
 
     SampleType dryMix = ( SampleType ) _dryMix;
     SampleType wetMix = ( SampleType ) _wetMix;
@@ -56,8 +58,9 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
     float downSampleLfoAcc   = _downSampleLfo->getAccumulator();
     float playbackRateLfoAcc = _playbackRateLfo->getAccumulator();
 
-    // dithering variables
+    float subSampleOffset;
 
+    // dithering variables
     int r1 = 0;
     int r2 = 0;
 
@@ -66,10 +69,13 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
         readPointer  = _readPointer;
         writePointer = _writePointer;
 
+        subSampleOffset = _subSampleOffset;
+
         SampleType* channelInBuffer  = inBuffer[ c ];
         SampleType* channelOutBuffer = outBuffer[ c ];
         float* channelRecordBuffer   = _recordBuffer->getBufferForChannel( c );
         float* channelPreMixBuffer   = _preMixBuffer->getBufferForChannel( c );
+        float* channelPostMixBuffer  = _postMixBuffer->getBufferForChannel( c );
 
         _downSampleLfo->setAccumulator( downSampleLfoAcc );
         _playbackRateLfo->setAccumulator( playbackRateLfoAcc );
@@ -87,42 +93,84 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
 
         // write current read range into the premix buffer, downsampling as necessary
 
-        i = 0;
-
-        while ( i < bufferSize ) {
+        for ( i = 0; i < bufferSize; ++i ) {
             t  = ( int ) readPointer;
             t2 = std::min( recordMax, t + 1 );
 
-            // this fractionals is in the 0 - 1 range
-            // NOTE: we have uncommented readPointer (float) to use t (int)
-            // as it is devilishly tasty when down sampling
-
-            frac = /*readPointer - t :*/ 0;
+            frac = readPointer - t;
 
             s1 = channelRecordBuffer[ t ];
             s2 = channelRecordBuffer[ t2 ];
 
-            float inSample   = ( s1 + ( s2 - s1 ) * frac );
-            // TODO: decimator accumulator should be per channel
-            float outSample  = _decimator->processSingle( inSample ) * .5;
+            float outSample = ( s1 + ( s2 - s1 ) * frac );
 
-            int start = i;
-            for ( l = std::min( fBufferSize, start + _sampleIncr ); i < l; ++i ) {
+            channelPreMixBuffer[ i ] = outSample;
+
+            // run the oscillator, note we multiply by .5 and add .5 to make the LFO's bipolar waveforms unipolar
+
+            if ( _hasPlaybackRateLfo ) {
+                float lfoValue = _playbackRateLfo->peek() * .5f + .5f;
+                _tempPlaybackRate = std::min( _playbackRateLfoMax, _playbackRateLfoMin + _playbackRateLfoRange * lfoValue );
+            }
+
+            if (( readPointer += _tempPlaybackRate ) > recordMax ) {
+                readPointer = 0.f;
+            }
+        }
+
+        // apply down sampling
+        int bufferPos = 0;
+        int nextPos = ( bufferPos + 1 ) % bufferSize;
+
+        if ( mustDownSample ) {
+
+            // first apply a lowpass filter on the mix buffer to prevent interpolation artefacts
+
+            _lowPassFilters.at( c )->applyFilter( channelPreMixBuffer, bufferSize );
+
+            /* ------ DECIMATOR ----- */
+            /*
+            for ( i = 0; i < bufferSize; ++i ) {
+                //r2 = r1;
+                //r1 = rand();
+
+                // TODO: decimator accumulator should be per channel
+                // TODO no worky ?
+
+                float nextSample = decimator->processSingle( channelPreMixBuffer[ i ] );
+
+                // correct DC offset and apply dither
+
+                channelPostMixBuffer[ i ] = nextSample;// + DITHER_DC_OFFSET + DITHER_AMPLITUDE * ( float )( r1 - r2 );
+                lastSample = nextSample * .25;
+
+                // run the oscillator, note we multiply by .5 and add .5 to make the LFO's bipolar waveforms unipolar
+
+                if ( _hasDownSampleLfo ) {
+                    float lfoValue = _downSampleLfo->peek() * .5f + .5f;
+                    _tempDownSampleAmount = std::min( _downSampleLfoMax, _downSampleLfoMin + _downSampleLfoRange * lfoValue );
+                    cacheValues();
+                }
+            }
+            */
+
+            /* ------ OWN ATTEMPT -----
+
+            i = 0;
+            float start = 0.f;
+            for ( int32 l = std::min( fBufferSize, start + _sampleIncr ); i < l; ++i ) {
 
                 r2 = r1;
                 r1 = rand();
 
-                float nextSample = outSample + lastSample;
+                float nextSample = ( channelPreMixBuffer[ i ] * .5 ) + lastSample;
 
                 // correct DC offset and apply dither
 
-                channelPreMixBuffer[ i ] = nextSample + DITHER_DC_OFFSET + DITHER_AMPLITUDE * ( float )( r1 - r2 );
+                channelPostMixBuffer[ i ] = nextSample + DITHER_DC_OFFSET + DITHER_AMPLITUDE * ( float )( r1 - r2 );
                 lastSample = nextSample * .25;
 
-                // update the increment in case the LFO's have updated the down sampling amount or playback rate
-                incr = ( float ) _sampleIncr * _tempPlaybackRate;
-
-                // run the oscillators, note we multiply by .5 and add .5 to make the LFO's bipolar waveforms unipolar
+                // run the oscillator, note we multiply by .5 and add .5 to make the LFO's bipolar waveforms unipolar
 
                 if ( _hasDownSampleLfo ) {
                     float lfoValue = _downSampleLfo->peek() * .5f + .5f;
@@ -130,27 +178,54 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
                     cacheValues();
                     l = std::min( fBufferSize, start + _sampleIncr );
                 }
+            }
+            */
 
-                if ( _hasPlaybackRateLfo ) {
-                    float lfoValue = _playbackRateLfo->peek() * .5f + .5f;
-                    _tempPlaybackRate = std::min( _playbackRateLfoMax, _playbackRateLfoMin + _playbackRateLfoRange * lfoValue );
+//            /* ------ JUCE -----
+            // https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_basics/sources/juce_ResamplingAudioSource.cpp
+
+            for ( i = 0; i < bufferSize; ++i ) {
+                if ( nextPos == maxBufferPos ) {
+                    break;
+                }
+                const float curSample  = channelPreMixBuffer[ bufferPos ];
+                const float nextSample = channelPreMixBuffer[ nextPos ];
+
+                channelPostMixBuffer[ i ] = curSample + subSampleOffset * ( nextSample - curSample );
+
+                subSampleOffset += _tempDownSampleAmount;
+
+                while ( subSampleOffset >= 1.f )
+                {
+                    if ( ++bufferPos > maxBufferPos ) {
+                        bufferPos = 0;
+                    }
+                    nextPos = ( bufferPos + 1 ) % bufferSize;
+                    subSampleOffset -= 1.f;
+                }
+
+                // run the oscillator, note we multiply by .5 and add .5 to make the LFO's bipolar waveforms unipolar
+
+                if ( _hasDownSampleLfo ) {
+                    float lfoValue = _downSampleLfo->peek() * .5f + .5f;
+                    _tempDownSampleAmount = std::min( _downSampleLfoMax, _downSampleLfoMin + _downSampleLfoRange * lfoValue );
                     cacheValues();
                 }
             }
-
-            if (( readPointer += incr ) > recordMax ) {
-                readPointer = 0.f;
-            }
+//            */
         }
 
+        // if down sampling was disabled, omit writing to post mix buffer
+        float* out = mustDownSample ? channelPostMixBuffer : channelPreMixBuffer;
+
         // apply bit crusher
-        bitCrusher->process( channelPreMixBuffer, bufferSize );
+        bitCrusher->process( out, bufferSize );
 
         // mix the input and processed mix buffers into the output buffer
 
         for ( i = 0; i < bufferSize; ++i ) {
             // wet mix (e.g. the effected signal)
-            channelOutBuffer[ i ] = ( SampleType ) channelPreMixBuffer[ i ] * wetMix;
+            channelOutBuffer[ i ] = ( SampleType ) out[ i ] * wetMix;
             // dry mix (e.g. mix in the input signal)
             if ( mixDry ) {
                 // before writing to the out buffer we take a snapshot of the current in sample
@@ -159,12 +234,13 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
                 channelOutBuffer[ i ] += ( inSample * dryMix );
             }
         }
-
         _lastSamples[ c ] = lastSample;
     }
     // update indices
     _readPointer  = readPointer;
     _writePointer = writePointer;
+
+    _subSampleOffset = subSampleOffset;
 
     // limit the output signal in case its gets hot (e.g. on heavy bit reduction)
     limiter->process<SampleType>( outBuffer, bufferSize, numOutChannels );
@@ -183,12 +259,17 @@ void PluginProcess::prepareMixBuffers( SampleType** inBuffer, int numInChannels,
         _maxRecordBufferSize = recordSize;
     }
 
-    // if the pre mix buffer wasn't created yet or the buffer size has changed
-    // delete existing buffer and create new one to match properties
+    // if the pre mix or post mix buffers weren't created yet or the buffer size has changed
+    // delete existing buffers and create new ones to match properties
 
     if ( _preMixBuffer == nullptr || _preMixBuffer->bufferSize != bufferSize ) {
         delete _preMixBuffer;
         _preMixBuffer = new AudioBuffer( numInChannels, bufferSize );
+    }
+
+    if ( _postMixBuffer == nullptr || _postMixBuffer->bufferSize != bufferSize ) {
+        delete _postMixBuffer;
+        _postMixBuffer = new AudioBuffer( numInChannels, bufferSize );
     }
 }
 
