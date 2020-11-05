@@ -27,6 +27,7 @@
 #include "audiobuffer.h"
 #include "bitcrusher.h"
 #include "decimator.h"
+#include "downsampler.h"
 #include "lowpassfilter.h"
 #include "limiter.h"
 #include <vector>
@@ -108,7 +109,10 @@ class PluginProcess
         void cacheLfo();
         void cacheMaxDownSample();
 
-        std::vector<LowPassFilter*> _lowPassFilters;
+        std::vector<LowPassFilter*> _lowPassFilters; // QQQ
+        float _ds = 1.f;
+        std::vector<DownSampler*> _downSamplers;
+        int _bufferPos = 0;
 
         // ensures the pre- and post mix buffers match the appropriate amount of channels
         // and buffer size. this also clones the contents of given in buffer into the pre-mix buffer

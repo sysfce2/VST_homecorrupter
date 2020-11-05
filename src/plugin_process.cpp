@@ -37,6 +37,7 @@ PluginProcess::PluginProcess( int amountOfChannels )
     for ( int i = 0; i < amountOfChannels; ++i ) {
         _lastSamples[ i ] = 0.f;
         _lowPassFilters.push_back( new LowPassFilter());
+        _downSamplers.push_back( new DownSampler());
     }
 
     _dryMix = 0.f;
@@ -81,6 +82,10 @@ PluginProcess::~PluginProcess()
     while ( _lowPassFilters.size() > 0 ) {
         delete _lowPassFilters.at( 0 );
         _lowPassFilters.erase( _lowPassFilters.begin() );
+    }
+    while ( _downSamplers.size() > 0 ) {
+        delete _downSamplers.at( 0 );
+        _downSamplers.erase( _downSamplers.begin() );
     }
 
     delete _recordBuffer;
@@ -209,8 +214,10 @@ void PluginProcess::cacheValues()
 
     // prepare the lowpass filters for the appropriate cutoff
 
+    _ds = 1.f + ( _tempDownSampleAmount / _maxDownSample );
     for ( int c = 0; c < _amountOfChannels; ++c ) {
-        _lowPassFilters.at( c )->calculateCutOff( _tempDownSampleAmount );
+        _lowPassFilters.at( c )->setRatio( _ds );
+        _downSamplers.at( c )->setRatio( _ds );
     }
 }
 

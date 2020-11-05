@@ -29,9 +29,10 @@ class LowPassFilter
         LowPassFilter();
         ~LowPassFilter();
 
-        void calculateCutOff( float frequencyRatio );
+        void setRatio( float frequencyRatio );
         void setFilterCoefficients( float c1, float c2, float c3, float c4, float c5, float c6 );
         void applyFilter( float* samples, int bufferSize );
+        void resetFilter();
 
     private:
         float coefficients[ 6 ];

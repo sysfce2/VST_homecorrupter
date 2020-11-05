@@ -22,17 +22,17 @@
 #ifndef __DOWNSAMPLER_H_INCLUDED__
 #define __DOWNSAMPLER_H_INCLUDED__
 
-#include <vector>
+#include "lowpassfilter.h"
 
 namespace Igorski {
 class DownSampler
 {
     public:
-        DownSampler( int amountOfChannels );
+        DownSampler();
         ~DownSampler();
 
-        void setDownSampleRatio( float value );
-        void process( float* sampleBuffer, int bufferSize );
+        void setRatio( float value );
+        void process( float* inputBuffer, int bufferSize, float* outputBuffer, int outputBufferSize );
 
     private:
         float ratio           = 1.f;
@@ -41,7 +41,7 @@ class DownSampler
         int sampsInBuffer     = 0;
         float subSampleOffset = 0.0;
 
-        int numChannels;
+        LowPassFilter* _lowpassFilter;
 
         void flushBuffers();
         void resetFilters();

@@ -59,6 +59,7 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
     float playbackRateLfoAcc = _playbackRateLfo->getAccumulator();
 
     float subSampleOffset;
+    int bufferPos;
 
     // dithering variables
     int r1 = 0;
@@ -119,14 +120,11 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
         }
 
         // apply down sampling
-        int bufferPos = 0;
+        bufferPos = _bufferPos;
         int nextPos = ( bufferPos + 1 ) % bufferSize;
 
         if ( mustDownSample ) {
 
-            // first apply a lowpass filter on the mix buffer to prevent interpolation artefacts
-
-            _lowPassFilters.at( c )->applyFilter( channelPreMixBuffer, bufferSize );
 
             /* ------ DECIMATOR ----- */
             /*
@@ -155,7 +153,9 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
             */
 
             /* ------ OWN ATTEMPT -----
+            // first apply a lowpass filter on the mix buffer to prevent interpolation artefacts
 
+            _lowPassFilters.at( c )->applyFilter( channelPreMixBuffer, bufferSize );
             i = 0;
             float start = 0.f;
             for ( int32 l = std::min( fBufferSize, start + _sampleIncr ); i < l; ++i ) {
@@ -181,8 +181,12 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
             }
             */
 
-//            /* ------ JUCE -----
+            /* ------ JUCE -----
             // https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_basics/sources/juce_ResamplingAudioSource.cpp
+
+            // first apply a lowpass filter on the mix buffer to prevent interpolation artefacts
+
+            _lowPassFilters.at( c )->applyFilter( channelPreMixBuffer, bufferSize );
 
             for ( i = 0; i < bufferSize; ++i ) {
                 if ( nextPos == maxBufferPos ) {
@@ -193,7 +197,7 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
 
                 channelPostMixBuffer[ i ] = curSample + subSampleOffset * ( nextSample - curSample );
 
-                subSampleOffset += _tempDownSampleAmount;
+                subSampleOffset += _ds;
 
                 while ( subSampleOffset >= 1.f )
                 {
@@ -212,7 +216,10 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
                     cacheValues();
                 }
             }
-//            */
+            */
+
+            // JUCE separate
+            //_downSamplers.at( c )->process( channelRecordBuffer, _maxRecordBufferSize, channelPostMixBuffer, bufferSize );
         }
 
         // if down sampling was disabled, omit writing to post mix buffer
@@ -241,6 +248,7 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
     _writePointer = writePointer;
 
     _subSampleOffset = subSampleOffset;
+    _bufferPos = bufferPos;
 
     // limit the output signal in case its gets hot (e.g. on heavy bit reduction)
     limiter->process<SampleType>( outBuffer, bufferSize, numOutChannels );

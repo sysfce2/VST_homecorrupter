@@ -29,20 +29,20 @@ namespace Igorski
 
 /* constructor / destructor */
 
-DownSampler::DownSampler( int amountOfChannels )
+DownSampler::DownSampler()
 {
-    numChannels = amountOfChannels;
+    _lowpassFilter = new LowPassFilter();
 }
 
 DownSampler::~DownSampler()
 {
-
+    delete _lowpassFilter;
 }
 
 /* getters / setters */
 
 //void ResamplingAudioSource::setResamplingRatio (const double samplesInPerOutputSample)
-void DownSampler::setDownSampleRatio( float value )
+void DownSampler::setRatio( float value )
 {
     ratio = std::max( 0.f, value );
     flushBuffers();
@@ -74,7 +74,7 @@ void DownSampler::flushBuffers()
     bufferPos = 0;
     sampsInBuffer = 0;
     subSampleOffset = 0.0;
-    //resetFilters();
+    _lowpassFilter->resetFilter();
 }
 
 /*
@@ -86,15 +86,13 @@ void ResamplingAudioSource::releaseResources()
 */
 
 //void ResamplingAudioSource::getNextAudioBlock (const AudioSourceChannelInfo& info)
-void DownSampler::process( float* sampleBuffer, int bufferSize )
+void DownSampler::process( float* inputBuffer, int bufferSize, float* outputBuffer, int outputBufferSize )
 {
-/*
     float localRatio = ratio;
     if ( lastRatio != localRatio ) {
-        createLowPass( localRatio );
+        _lowpassFilter->setRatio( localRatio );
         lastRatio = localRatio;
     }
-
     const int sampsNeeded = ( int )( bufferSize * localRatio ) + 3;
 
 //    if ( bufferSize < sampsNeeded + 8 ) {
@@ -106,44 +104,41 @@ void DownSampler::process( float* sampleBuffer, int bufferSize )
     bufferPos %= bufferSize;
 
     int endOfBufferPos = bufferPos + sampsInBuffer;
-    const int channelsToProcess = amountOfChannels;
 
     while ( sampsNeeded > sampsInBuffer )
     {
         endOfBufferPos %= bufferSize;
 
-        int numToDo = min( sampsNeeded - sampsInBuffer, bufferSize - endOfBufferPos );
+        int numToDo = std::min( sampsNeeded - sampsInBuffer, bufferSize - endOfBufferPos );
 
-        if ( localRatio > 1.0001 )
-        {
+        if ( localRatio > 1.0001 ) {
             // for down-sampling, pre-apply the filter..
-
-            for ( int i = channelsToProcess; --i >= 0; ) {
-                applyFilter( buffer.getWritePointer( i, endOfBufferPos ), numToDo, filterStates[ i ]);
-            }
+            _lowpassFilter->applyFilter( inputBuffer, bufferSize );
         }
         sampsInBuffer  += numToDo;
         endOfBufferPos += numToDo;
     }
 
-    for ( int channel = 0; channel < channelsToProcess; ++channel ) {
-        destBuffers[ channel ] = info.buffer->getWritePointer( channel, info.startSample );
-        srcBuffers[ channel ]  = buffer.getReadPointer( channel );
-    }
-
+//    for ( int channel = 0; channel < channelsToProcess; ++channel ) {
+//        destBuffers[ channel ] = info.buffer->getWritePointer( channel, info.startSample );
+//        srcBuffers[ channel ]  = buffer.getReadPointer( channel );
+//    }
+//              for (int i = 0; i <bufferSize;++i)
+//              outputBuffer[i]=inputBuffer[i];
+//          return; // QQQ
     int nextPos = ( bufferPos + 1 ) % bufferSize;
 
-    for ( int m = info.numSamples; --m >= 0; ) {
+    for ( int i = 0, m = outputBufferSize; --m >= 0; ++i ) {
         if ( sampsInBuffer <= 0 || nextPos == endOfBufferPos ) {
             break;
         }
 
         const float alpha = ( float ) subSampleOffset;
 
-        for ( int channel = 0; channel < channelsToProcess; ++channel ) {
-            *destBuffers[channel]++ = srcBuffers[channel][bufferPos]
-                                        + alpha * (srcBuffers[channel][nextPos] - srcBuffers[channel][bufferPos]);
-        }
+        const float curSample  = inputBuffer[ bufferPos ];
+        const float nextSample = inputBuffer[ nextPos ];
+
+        outputBuffer[ i ] = curSample + subSampleOffset * ( nextSample - curSample );
 
         subSampleOffset += localRatio;
 
@@ -162,25 +157,21 @@ void DownSampler::process( float* sampleBuffer, int bufferSize )
 //    if (localRatio <= 1.0001 && info.numSamples > 0)
 //    {
 //        // if the filter's not currently being applied, keep it stoked with the last couple of samples to avoid discontinuities
-//        for (int i = channelsToProcess; --i >= 0;)
+//        const float* const endOfBuffer = info.buffer->getReadPointer (i, info.startSample + info.numSamples - 1);
+//        FilterState& fs = filterStates[i];
+//
+//        if (info.numSamples > 1)
 //        {
-//            const float* const endOfBuffer = info.buffer->getReadPointer (i, info.startSample + info.numSamples - 1);
-//            FilterState& fs = filterStates[i];
-//
-//            if (info.numSamples > 1)
-//            {
-//                fs.y2 = fs.x2 = *(endOfBuffer - 1);
-//            }
-//            else
-//            {
-//                fs.y2 = fs.y1;
-//                fs.x2 = fs.x1;
-//            }
-//
-//            fs.y1 = fs.x1 = *endOfBuffer;
+//            fs.y2 = fs.x2 = *(endOfBuffer - 1);
 //        }
+//        else
+//        {
+//            fs.y2 = fs.y1;
+//            fs.x2 = fs.x1;
+//        }
+//
+//        fs.y1 = fs.x1 = *endOfBuffer;
 //    }
-*/
 }
 
 }
