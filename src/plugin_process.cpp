@@ -217,7 +217,10 @@ void PluginProcess::cacheValues()
     _ds = 1.f + ( _tempDownSampleAmount / _maxDownSample );
     for ( int c = 0; c < _amountOfChannels; ++c ) {
         _lowPassFilters.at( c )->setRatio( _ds );
-        _downSamplers.at( c )->setRatio( _ds );
+        _downSamplers.at( c )->setSampleRate(
+            ( int ) VST::SAMPLE_RATE,
+            ( int ) ( VST::SAMPLE_RATE / _tempDownSampleAmount )
+        );
     }
 }
 

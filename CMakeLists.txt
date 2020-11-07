@@ -20,7 +20,7 @@ set(build_number 1) # TODO supply through CLI (build number is not included in p
 # Compiler settings #
 #####################
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 add_definitions(-DNDEBUG)
 add_compile_definitions(PLUGIN_COPYRIGHT=${copyright})
 add_compile_definitions(PLUGIN_MAJOR_VERSION=${major_version})
@@ -34,11 +34,11 @@ endif()
 
 if(UNIX)
     if(XCODE)
-       set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++14")
+       set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++17")
        set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
     elseif(APPLE)
        set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
-       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++")
+       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -stdlib=libc++")
        link_libraries(c++)
        # support Yosemite and up
        set(CMAKE_OSX_SYSROOT macosx10.10)
@@ -47,7 +47,7 @@ if(UNIX)
         set(LINUX true)
         add_definitions( -D__cdecl= )
         set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -Wno-multichar")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -Wno-multichar")
         link_libraries(stdc++fs pthread dl)
     endif()
 else()

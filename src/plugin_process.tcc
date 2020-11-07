@@ -218,8 +218,7 @@ void PluginProcess::process( SampleType** inBuffer, SampleType** outBuffer, int 
             }
             */
 
-            // JUCE separate
-            //_downSamplers.at( c )->process( channelRecordBuffer, _maxRecordBufferSize, channelPostMixBuffer, bufferSize );
+            _downSamplers.at( c )->process( channelRecordBuffer, _maxRecordBufferSize, channelPostMixBuffer, bufferSize );
         }
 
         // if down sampling was disabled, omit writing to post mix buffer
