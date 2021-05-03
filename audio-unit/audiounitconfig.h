@@ -1,5 +1,3 @@
-#define PLATFORM_64 true
-
 #include "version.h"
 
 // Check https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/AudioUnit.html for various types
@@ -7,8 +5,8 @@
 /* Bundle Identifier */
 #define kAudioUnitBundleIdentifier	nl.igorski.vst.homecorrupter.audiounit
 
-/* Version Number (needs to be in hex) */
-#define kAudioUnitVersion			0x00010000
+/* Version Number (computed in version.h from version in CMakeLists.txt) */
+#define kAudioUnitVersion			AU_VERSION_INT
 
 /* Company Name + Effect Name */
 #define kAUPluginName 				igorski: Homecorrupter

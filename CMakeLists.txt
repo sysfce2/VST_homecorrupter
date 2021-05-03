@@ -5,8 +5,10 @@
 cmake_minimum_required(VERSION 3.12)
 set(CMAKE_COLOR_MAKEFILE ON)
 
-# uncomment to build as VST2.4 instead of VST3.0 (provides wider DAW compatibility), not supported on Linux
-#set(SMTG_CREATE_VST2_VERSION "Use VST2" ON)
+# build as VST2.4 instead of VST3.0 (provides wider DAW compatibility), not supported on Linux
+if (${BUILD_VST2})
+    set(SMTG_CREATE_VST2_VERSION "Use VST2" ON)
+endif()
 
 project(homecorrupter)
 set(target homecorrupter)
@@ -40,9 +42,6 @@ if(UNIX)
        set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -stdlib=libc++")
        link_libraries(c++)
-       # support Yosemite and up
-       set(CMAKE_OSX_SYSROOT macosx10.10)
-       set(CMAKE_OSX_DEPLOYMENT_TARGET "10.10")
     else()
         set(LINUX true)
         add_definitions( -D__cdecl= )
@@ -55,6 +54,11 @@ else()
     ## OS MUST be Windows. Then again that's the only other intended target for this project...
     set(WIN true)
 endif()
+if (APPLE)
+    # support Yosemite and up
+    set(CMAKE_OSX_SYSROOT macosx10.10)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.10")
+endif()
 
 ############
 # Includes #
@@ -62,18 +66,18 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${VST3_SDK_ROOT}/cmake/modules")
 
-include(Global)
-include(AddVST3Library)
-include(Bundle)
-include(ExportedSymbols)
-include(PrefixHeader)
-include(PlatformIOS)
-include(PlatformToolset)
-include(CoreAudioSupport)
-include(AAXSupport)
-include(VstGuiSupport)
-include(UniversalBinary)
-include(AddVST3Options)
+include(SMTG_Global)
+include(SMTG_AddVST3Library)
+include(SMTG_Bundle)
+include(SMTG_ExportedSymbols)
+include(SMTG_PrefixHeader)
+include(SMTG_PlatformIOS)
+include(SMTG_PlatformToolset)
+include(SMTG_CoreAudioSupport)
+include(SMTG_AAXSupport)
+include(SMTG_VstGuiSupport)
+include(SMTG_UniversalBinary)
+include(SMTG_AddVST3Options)
 
 #########################
 # Steinberg VST sources #
@@ -146,41 +150,29 @@ set(vst_ui_descr "resource/plugin.uidesc")
 ##############
 
 if (JAMBA_ENABLE_AUDIO_UNIT)
-    set(JAMBA_TEST_CASES_DIR "${JAMBA_ROOT}/test/cpp")
-    set(JAMBA_TEST_CASES_SOURCES
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/Utils/Collection/test-CircularBuffer.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/Utils/Concurrent/test-concurrent.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/Utils/Concurrent/test-concurrent_lockfree.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/Utils/test-Lerp.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/Utils/test-StringUtils.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/GUI/Params/test-GUIParameters.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/GUI/Params/test-ParamAware.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/GUI/Views/test-CustomViewCreator.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/GUI/Views/test-SelfContainedViewListener.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/test-AudioBuffers.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/test-AudioUtils.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/test-ParamConverters.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/test-SampleRateBasedClock.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/Utils/test-Utils.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/Utils/test-FastWriteMemoryStream.cpp
-        ${JAMBA_TEST_CASES_DIR}/pongasoft/VST/Utils/test-ReadOnlyMemoryStream.cpp
-    )
+    include(fetch_jamba.cmake)
 
-    include(jamba.cmake)
-    set(CPP_SOURCES src)
+    set(JAMBA_ROOT_DIR "${CMAKE_BINARY_DIR}/jamba")
+    include("${JAMBA_ROOT_DIR}/cmake/JambaSetArchitecture.cmake")
+    include(${JAMBA_ROOT_DIR}/jamba.cmake)
 
-    configure_file(${CPP_SOURCES}/version.h ${CMAKE_BINARY_DIR}/generated/version.h)
-    include_directories(${CMAKE_BINARY_DIR}/generated/)
+    set(VERSION_DIR "${CMAKE_BINARY_DIR}/generated")
+    configure_file("src/version.h" "${VERSION_DIR}/version.h")
+
+    set(JAMBA_MACOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}" CACHE STRING "macOS deployment target")
 
     jamba_add_vst_plugin(
         TARGET              "${target}"
-        RELEASE_FILENAME    "${target}.component"
+        RELEASE_FILENAME    "${target}"
+        ARCHIVE_ARCHITECTURE "${JAMBA_ARCHIVE_ARCHITECTURE}"
         TARGETS_PREFIX      "jmb_"
         VST_SOURCES         "${vst_sources}"
+        INCLUDE_DIRECTORIES  "${VERSION_DIR}" # we add the version folder to the list of includes
         UIDESC              "${vst_ui_descr}"
         RESOURCES           "${vst_resources}"
-        TEST_CASE_SOURCES   "${JAMBA_TEST_CASES_SOURCES}"
-        TEST_LINK_LIBRARIES "jamba"
+        TEST_CASE_SOURCES   "test/plugin-test.cpp"
+#        TEST_SOURCES         "${vst_sources}"
+#        TEST_LINK_LIBRARIES "jamba"
     )
 
 else()
@@ -193,7 +185,7 @@ smtg_add_vst3plugin(${target} ${vst_sources})
 
 ## include Steinberg libraries
 
-set(steinberg_libs "base" "pluginterfaces" "sdk" "vstgui_support" "vstgui_uidescription" "vstgui")
+set(steinberg_libs "base" "pluginterfaces" "sdk" "sdk_common" "vstgui_support" "vstgui_uidescription" "vstgui")
 include_directories(${VSTSDK_INCLUDE_DIR})
 foreach(lib IN ITEMS ${steinberg_libs})
     if(UNIX)
@@ -210,6 +202,7 @@ target_sources(${target} PRIVATE
     ${VST3_SDK_ROOT}/vstgui4/vstgui/vstgui_uidescription.cpp
     ${VST3_SDK_ROOT}/vstgui4/vstgui/plugin-bindings/vst3editor.cpp
     ${VST3_SDK_ROOT}/public.sdk/source/vst/vstguieditor.cpp
+    ${VST3_SDK_ROOT}/public.sdk/source/common/commoniids.cpp
 )
 
 ## include macOS specific libraries
@@ -298,7 +291,7 @@ if (LINUX)
         fontconfig
         dl
     )
-    target_link_libraries(${target} PRIVATE ${LINUX_LIBRARIES}) 
+    target_link_libraries(${target} PRIVATE ${LINUX_LIBRARIES})
 endif()
 
 ## Include Windows specific libraries

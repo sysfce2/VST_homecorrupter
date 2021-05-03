@@ -21,12 +21,12 @@
 // Version without build number (example "1.0.3")
 #define VERSION_STR MAJOR_VERSION_STR "." SUB_VERSION_STR "." RELEASE_NUMBER_STR
 
+// AU specific: Archive architecture and Audio Unit version (as an hex int)
+#define BUILD_ARCHIVE_ARCHITECTURE "@JAMBA_ARCHIVE_ARCHITECTURE@"
+#define AU_VERSION_INT 0x00010000
+
 #define stringOriginalFilename  "homecorrupter.vst3"
-#if PLATFORM_64
-#define stringFileDescription   "Homecorrupter plugin (64Bit)"
-#else
 #define stringFileDescription   "Homecorrupter plugin"
-#endif
 #define stringCompanyName       "igorski.nl\0"
 #define stringLegalCopyright    #PLUGIN_COPYRIGHT
 #define stringLegalTrademarks   "VST is a trademark of Steinberg Media Technologies GmbH"
