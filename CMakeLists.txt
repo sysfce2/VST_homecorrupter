@@ -2,23 +2,34 @@
 # CMake Project for HOMECORRUPTER Plugin #
 #####################################
 
+cmake_minimum_required(VERSION 3.12)
+set(CMAKE_COLOR_MAKEFILE ON)
+
 # uncomment to build as VST2.4 instead of VST3.0 (provides wider DAW compatibility)
-set(SMTG_CREATE_VST2_VERSION "Use VST2" ON)
+#set(SMTG_CREATE_VST2_VERSION "Use VST2" ON)
 
 # uncomment to build Audio Unit (requires macOS and Xcode)
 #option(JAMBA_ENABLE_AUDIO_UNIT "Enable Audio Unit" ON)
 
-#######################
-# DO NOT CHANGE BELOW #
-#######################
+project(homecorrupter)
+set(target homecorrupter)
+set(copyright "igorski.nl 2020")
+set(major_version 1)
+set(minor_version 0)
+set(release_number 3)
+set(build_number 1) # TODO supply through CLI (build number is not included in public facing version strings)
 
-project(HOMECORRUPTER)
-cmake_minimum_required(VERSION 3.12)
-set(CMAKE_COLOR_MAKEFILE ON)
+#####################
+# Compiler settings #
+#####################
+
 set(CMAKE_CXX_STANDARD 14)
-
-# compiler flags
 add_definitions(-DNDEBUG)
+add_compile_definitions(PLUGIN_COPYRIGHT=${copyright})
+add_compile_definitions(PLUGIN_MAJOR_VERSION=${major_version})
+add_compile_definitions(PLUGIN_MINOR_VERSION=${minor_version})
+add_compile_definitions(PLUGIN_RELEASE_NUMBER=${release_number})
+add_compile_definitions(PLUGIN_BUILD_NUMBER=${build_number})
 
 if(MSVC)
     add_definitions(/D _CRT_SECURE_NO_WARNINGS)
@@ -222,7 +233,7 @@ IF (APPLE)
         MACOSX_BUNDLE_GUI_IDENTIFIER "nl.igorski.homecorrupter"
         MACOSX_BUNDLE_ICON_FILE ""
         MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0.3"
-        MACOSX_BUNDLE_COPYRIGHT "igorski.nl © 2021"
+        MACOSX_BUNDLE_COPYRIGHT "igorski.nl © 2020"
     )
 ENDIF (APPLE)
 

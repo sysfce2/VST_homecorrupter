@@ -25,7 +25,7 @@ cmake -GXcode ${DVST3_SDK_ROOT} -DJAMBA_ENABLE_AUDIO_UNIT=ON ${BASEDIR}
 
 # build Audio Unit using Jamba in Release mode
 
-sh jamba.sh build-au -r
+sh jamba.sh -r build-au
 sh jamba.sh install-au
 
 cd ..
